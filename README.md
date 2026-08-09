@@ -1,7 +1,7 @@
 # INTENT_DETECTION
 
-An interview-ready intent-detection lab based on the class deck in
-`1_SUPPORTIVE_DOC/How-Intent-Detection-Works.pptx.md`.
+An interview-ready intent-detection lab based on the class deck included in
+`notebooks/0_How-Intent-Detection-Works.pptx.md`.
 
 The project teaches and implements a production-minded intent pipeline for an
 EdTech business profile. It is not just an LLM wrapper. The backend owns the
@@ -41,13 +41,23 @@ notebooks/
 
 ## Setup
 
-Always use the existing shared venv:
+Clone the repo and enter the project folder:
 
 ```bash
-cd /mnt/STUDY/2026/12_INTENT/2_CODE_BASE/INTENT_DETECTION
-source /mnt/STUDY/venvs_linux/venv310/bin/activate
+git clone https://github.com/kfl15/INTENT.git
+cd INTENT
+```
+
+Create and activate a Python virtual environment:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+Local note for my study machine: I use
+`/mnt/STUDY/venvs_linux/venv310` instead of `.venv`.
 
 Install frontend dependencies:
 
@@ -63,6 +73,12 @@ The app runs without a DeepSeek key by using local fallback.
 When you are ready to test AI mode, copy `.env.example` to `.env` and add:
 
 ```bash
+cp .env.example .env
+```
+
+Then edit `.env`:
+
+```env
 DEEPSEEK_API_KEY=your_key_here
 DEEPSEEK_MODEL=deepseek-chat
 ```
@@ -76,19 +92,31 @@ Pydantic and still applies the allowed-intent gate.
 Backend:
 
 ```bash
-cd /mnt/STUDY/2026/12_INTENT/2_CODE_BASE/INTENT_DETECTION
-source /mnt/STUDY/venvs_linux/venv310/bin/activate
+cd INTENT
+source .venv/bin/activate
 python3 -m uvicorn app.main:app --app-dir backend --reload --port 8000
+```
+
+Backend URLs:
+
+```text
+API base: http://localhost:8000
+Health check: http://localhost:8000/health
+Interactive API docs: http://localhost:8000/docs
 ```
 
 Frontend:
 
 ```bash
-cd /mnt/STUDY/2026/12_INTENT/2_CODE_BASE/INTENT_DETECTION/frontend
+cd INTENT/frontend
 npm run dev
 ```
 
-Open the UI at `http://localhost:5173`.
+Frontend UI:
+
+```text
+http://localhost:5173
+```
 
 Each `/classify` response includes timing fields:
 
@@ -108,8 +136,8 @@ source=ai, status=failed       -> AI failed and fallback was disabled
 ## Test
 
 ```bash
-cd /mnt/STUDY/2026/12_INTENT/2_CODE_BASE/INTENT_DETECTION
-source /mnt/STUDY/venvs_linux/venv310/bin/activate
+cd INTENT
+source .venv/bin/activate
 pytest
 ```
 
