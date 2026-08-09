@@ -1,0 +1,42 @@
+[
+  {
+    "text": "ML course er price koto?",
+    "expected_intent": "course_pricing_payment",
+    "expected_category": "relevant"
+  },
+  {
+    "text": "course fee koto?",
+    "expected_intent": "course_pricing_payment",
+    "expected_category": "relevant"
+  },
+  {
+    "text": "class kobe start hobe?",
+    "expected_intent": "course_schedule_duration",
+    "expected_category": "relevant"
+  },
+  {
+    "text": "recording pabo?",
+    "expected_intent": "recording_access",
+    "expected_category": "relevant"
+  },
+  {
+    "text": "ami confused, kon course nibo?",
+    "expected_intent": "career_guidance",
+    "expected_category": "relevant"
+  },
+  {
+    "text": "ki ki course available?",
+    "expected_intent": "course_list",
+    "expected_category": "relevant"
+  },
+  {
+    "text": "thanks",
+    "expected_intent": "neutral",
+    "expected_category": "neutral"
+  },
+  {
+    "text": "ajke weather kemon?",
+    "expected_intent": "irrelevant",
+    "expected_category": "irrelevant"
+  }
+]

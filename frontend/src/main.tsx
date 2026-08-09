@@ -32,6 +32,10 @@ type ClassifyResponse = {
   source: "ai" | "local";
   status: "success" | "failed" | "fallback";
   reason: string;
+  routing_mode: "local_direct" | "ai" | "ai_fallback" | "ai_failed";
+  cache_hit: boolean;
+  local_score: number;
+  matched_terms: string[];
   duration_ms: number;
   classification_duration_ms: number;
   trace: PipelineStep[];
@@ -169,6 +173,21 @@ function App() {
               value={result ? `${result.source} / ${result.status}` : "waiting"}
             />
             <SummaryCard
+              icon={<Route size={18} />}
+              label="Routing"
+              value={result?.routing_mode ?? "waiting"}
+            />
+            <SummaryCard
+              icon={<RefreshCcw size={18} />}
+              label="Cache"
+              value={result ? (result.cache_hit ? "hit" : "miss") : "waiting"}
+            />
+            <SummaryCard
+              icon={<ShieldCheck size={18} />}
+              label="Local Score"
+              value={result ? String(result.local_score) : "waiting"}
+            />
+            <SummaryCard
               icon={<Timer size={18} />}
               label="Total Time"
               value={result ? `${result.duration_ms} ms` : "waiting"}
@@ -208,6 +227,10 @@ function App() {
           <section className="reason-band">
             <h2>Classifier Reason</h2>
             <p>{result?.reason ?? "Run a message to see the classifier explanation."}</p>
+            <p>
+              Matched terms:{" "}
+              {result?.matched_terms.length ? result.matched_terms.join(", ") : "none"}
+            </p>
           </section>
         </section>
       </section>

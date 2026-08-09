@@ -6,8 +6,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+from app.evaluation import evaluate_intents
 from app.pipeline import run_intent_pipeline
-from app.schemas import ClassifyRequest, ClassifyResponse
+from app.schemas import ClassifyRequest, ClassifyResponse, EvaluationResponse
 
 settings = get_settings()
 
@@ -33,3 +34,8 @@ async def classify(request: ClassifyRequest) -> ClassifyResponse:
         text=request.text,
         business_type=request.business_type,
     )
+
+
+@app.get("/evaluate-intents", response_model=EvaluationResponse)
+async def evaluate() -> EvaluationResponse:
+    return await evaluate_intents()

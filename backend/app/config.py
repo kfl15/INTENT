@@ -17,6 +17,13 @@ class Settings(BaseSettings):
     deepseek_base_url: str = "https://api.deepseek.com"
     deepseek_model: str = "deepseek-chat"
     intent_fallback_enabled: bool = True
+    classification_strategy: str = "smart_hybrid"
+    local_direct_min_score: float = 2.0
+    llm_timeout_seconds: float = 8.0
+    llm_max_concurrency: int = 20
+    llm_retry_count: int = 1
+    cache_ttl_seconds: int = 300
+    request_log_path: str = "logs/intent_requests.jsonl"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

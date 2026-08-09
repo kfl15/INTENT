@@ -8,6 +8,7 @@ from app.classifier import classify_intent
 from app.dialogue import detect_dialogue_act
 from app.overrides import apply_post_classification_overrides
 from app.profiles import resolve_profile
+from app.request_logger import log_classification_response
 from app.schemas import (
     ClassificationOutcome,
     ClassifyResponse,
@@ -65,7 +66,11 @@ async def run_intent_pipeline(text: str, business_type: str = "edtech") -> Class
         PipelineStep(
             name="Classification",
             status=classification_status,
-            detail=f"{outcome.source} classifier returned {outcome.result.intent} with {outcome.result.confidence} confidence.",
+            detail=(
+                f"{outcome.routing_mode} returned {outcome.result.intent} "
+                f"with {outcome.result.confidence} confidence; "
+                f"local_score={outcome.local_score}, cache_hit={outcome.cache_hit}."
+            ),
             duration_ms=classification_duration_ms,
         )
     )
@@ -129,7 +134,7 @@ async def run_intent_pipeline(text: str, business_type: str = "edtech") -> Class
 
     total_duration_ms = _elapsed_ms(pipeline_start)
 
-    return ClassifyResponse(
+    response = ClassifyResponse(
         text=text,
         business_type=profile.business_type,
         intent=outcome.result.intent,
@@ -138,7 +143,13 @@ async def run_intent_pipeline(text: str, business_type: str = "edtech") -> Class
         source=outcome.source,
         status=outcome.status,
         reason=outcome.result.reason,
+        routing_mode=outcome.routing_mode,
+        cache_hit=outcome.cache_hit,
+        local_score=outcome.local_score,
+        matched_terms=outcome.matched_terms,
         duration_ms=total_duration_ms,
         classification_duration_ms=classification_duration_ms,
         trace=trace,
     )
+    log_classification_response(response)
+    return response

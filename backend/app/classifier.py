@@ -2,14 +2,105 @@
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
 import json
 
 from openai import AsyncOpenAI
 
+from app.cache import TTLCache
 from app.config import get_settings
-from app.fallback import local_fallback_outcome
+from app.fallback import best_local_intent_score, local_fallback_outcome
 from app.schemas import ClassificationOutcome, IntentClassification
 from app.taxonomy import INTENTS
+
+_classification_cache: TTLCache[ClassificationOutcome] | None = None
+_classification_cache_ttl: int | None = None
+_llm_semaphore: asyncio.Semaphore | None = None
+_llm_semaphore_limit: int | None = None
+
+
+def _get_cache() -> TTLCache[ClassificationOutcome]:
+    global _classification_cache, _classification_cache_ttl
+
+    settings = get_settings()
+    if _classification_cache is None or _classification_cache_ttl != settings.cache_ttl_seconds:
+        _classification_cache = TTLCache[ClassificationOutcome](settings.cache_ttl_seconds)
+        _classification_cache_ttl = settings.cache_ttl_seconds
+    return _classification_cache
+
+
+def clear_classification_cache() -> None:
+    if _classification_cache is not None:
+        _classification_cache.clear()
+
+
+def _get_llm_semaphore() -> asyncio.Semaphore:
+    global _llm_semaphore, _llm_semaphore_limit
+
+    settings = get_settings()
+    limit = max(settings.llm_max_concurrency, 1)
+    if _llm_semaphore is None or _llm_semaphore_limit != limit:
+        _llm_semaphore = asyncio.Semaphore(limit)
+        _llm_semaphore_limit = limit
+    return _llm_semaphore
+
+
+def _cache_key(
+    text: str,
+    allowed_intents: set[str] | frozenset[str],
+) -> str:
+    settings = get_settings()
+    payload = "|".join(
+        [
+            text.casefold().strip(),
+            ",".join(sorted(allowed_intents)),
+            settings.classification_strategy,
+            str(settings.local_direct_min_score),
+            settings.deepseek_model,
+            "has-key" if settings.deepseek_api_key else "no-key",
+        ]
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _local_direct_outcome(
+    score,
+) -> ClassificationOutcome:
+    return ClassificationOutcome(
+        result=IntentClassification(
+            intent=score.intent,
+            confidence="high",
+            reason=f"Local score {score.score} matched terms: {', '.join(score.matched_terms)}.",
+        ),
+        source="local",
+        status="success",
+        routing_mode="local_direct",
+        local_score=score.score,
+        matched_terms=score.matched_terms,
+    )
+
+
+async def _classify_intent_with_controls(
+    text: str,
+    allowed_intents: set[str] | frozenset[str],
+) -> IntentClassification:
+    settings = get_settings()
+    attempts = max(settings.llm_retry_count, 0) + 1
+    last_error: Exception | None = None
+
+    for _attempt in range(attempts):
+        try:
+            async with _get_llm_semaphore():
+                return await asyncio.wait_for(
+                    classify_intent_with_llm(text, allowed_intents),
+                    timeout=settings.llm_timeout_seconds,
+                )
+        except Exception as exc:
+            last_error = exc
+
+    raise RuntimeError(str(last_error) if last_error else "AI classification failed")
+
 
 # This function sends the user message to DeepSeek. DeepSeek returns predicted intent.
 async def classify_intent_with_llm(
@@ -32,6 +123,7 @@ async def classify_intent_with_llm(
     client = AsyncOpenAI(
         api_key=settings.deepseek_api_key,
         base_url=settings.deepseek_base_url,
+        timeout=settings.llm_timeout_seconds,
     )
 
     system = (
@@ -96,16 +188,51 @@ async def classify_intent(
     allowed_intents: set[str] | frozenset[str],
 ) -> ClassificationOutcome:
     settings = get_settings()
+    cache = _get_cache()
+    key = _cache_key(text, allowed_intents)
+    cached = cache.get(key)
+    if cached is not None:
+        return cached.model_copy(update={"cache_hit": True}, deep=True)
+
+    local_score = best_local_intent_score(text, allowed_intents)
+
+    if settings.classification_strategy == "local_only":
+        outcome = local_fallback_outcome(text, "Local-only strategy", allowed_intents)
+        outcome = outcome.model_copy(update={"routing_mode": "local_direct"})
+        cache.set(key, outcome)
+        return outcome
+
+    if (
+        settings.classification_strategy == "smart_hybrid"
+        and local_score.score >= settings.local_direct_min_score
+        and local_score.intent != "unknown"
+    ):
+        outcome = _local_direct_outcome(local_score)
+        cache.set(key, outcome)
+        return outcome
 
     if not settings.deepseek_api_key:
-        return local_fallback_outcome(text, "No DeepSeek API key", allowed_intents)
+        outcome = local_fallback_outcome(text, "No DeepSeek API key", allowed_intents)
+        cache.set(key, outcome)
+        return outcome
 
     try:
-        result = await classify_intent_with_llm(text, allowed_intents)
-        return ClassificationOutcome(result=result, source="ai", status="success")
+        result = await _classify_intent_with_controls(text, allowed_intents)
+        outcome = ClassificationOutcome(
+            result=result,
+            source="ai",
+            status="success",
+            routing_mode="ai",
+            local_score=local_score.score,
+            matched_terms=local_score.matched_terms,
+        )
+        cache.set(key, outcome)
+        return outcome
     except Exception as exc:
         if settings.intent_fallback_enabled:
-            return local_fallback_outcome(text, str(exc), allowed_intents)
+            outcome = local_fallback_outcome(text, str(exc), allowed_intents)
+            cache.set(key, outcome)
+            return outcome
 
         return ClassificationOutcome(
             result=IntentClassification(
@@ -116,4 +243,7 @@ async def classify_intent(
             source="ai",
             status="failed",
             error=str(exc),
+            routing_mode="ai_failed",
+            local_score=local_score.score,
+            matched_terms=local_score.matched_terms,
         )

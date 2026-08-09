@@ -13,7 +13,10 @@ async def test_pipeline_uses_local_fallback_without_api_key(monkeypatch: pytest.
     assert response.intent == "course_pricing_payment"
     assert response.category == "relevant"
     assert response.source == "local"
-    assert response.status == "fallback"
+    assert response.status == "success"
+    assert response.routing_mode == "local_direct"
+    assert response.local_score > 0
+    assert response.matched_terms
 
 
 @pytest.mark.asyncio
