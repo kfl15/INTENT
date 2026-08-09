@@ -1,7 +1,7 @@
 # INTENT_DETECTION
 
 An interview-ready intent-detection lab based on the class deck included in
-`notebooks/0_How-Intent-Detection-Works.pptx.md`.
+`notebooks/0_intent_detection_study_notes.md`.
 
 The project teaches and implements a production-minded intent pipeline for an
 EdTech business profile. It is not just an LLM wrapper. The backend owns the
